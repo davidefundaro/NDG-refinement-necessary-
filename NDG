@@ -1,0 +1,46 @@
+library(dplyr)
+library(readr)
+library(tidyverse)
+
+#upload a csv file
+ndg <- read.csv("ndg.csv", sep= ';')
+
+#rename first dataset
+X <- ndg
+
+#give names to columns using the first row
+names(X) <- X[1,]
+#eliminate the first row (no more necessary)
+X <- X[-1,]
+
+#convert - into ,
+X <- as.data.frame(gsub("[-]", ",", as.matrix(X)))
+
+#create a column for address id and set it as numeric
+X$ID_Address <- seq(nrow(X))
+X$ID_Address <- X$ID_Address %>% as.numeric()
+
+#separate rows by , for BorrowsName and place the problematic rows as last
+X2 <- X %>% mutate(BorrowerName = strsplit(as.character(BorrowerName), ",")) %>% 
+  unnest(BorrowerName) %>% slice(c(1:2, 7:n(), 3:6))
+X2 <-  X2 %>% select(BorrowerName)
+
+#separate rows by , for Tax ID and place the problematic rows (multinamed) as last
+X3 <- X %>% mutate(`Tax ID` = strsplit(as.character(`Tax ID`), ",")) %>%
+  unnest(`Tax ID`) %>% slice(c(1:2, 6:n(), 3:5))
+X3 <-  X3 %>% select(`Tax ID`)
+
+#unify X2 (names) with X3 (tax id)
+X_name_id <- merge(X2, X3, by = "row.names", all = TRUE)
+X_name_id <- X_name_id %>% select(-`Row.names`)
+
+#split names in X
+X <- X %>% mutate(BorrowerName = strsplit(as.character(BorrowerName), ",")) %>% 
+  unnest(BorrowerName)
+
+#eliminate tax id in X
+X <- X %>% select(-`Tax ID`)
+
+#merge name-id dataset with X
+X_fine <- merge(X, X_name_id, by = "BorrowerName", all = TRUE)
+X <- X_fine
