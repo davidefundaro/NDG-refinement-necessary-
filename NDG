@@ -44,3 +44,61 @@ X <- X %>% select(-`Tax ID`)
 #merge name-id dataset with X
 X_fine <- merge(X, X_name_id, by = "BorrowerName", all = TRUE)
 X <- X_fine
+
+#eliminate commas
+X <- as.data.frame(gsub("[,]", "", as.matrix(X)))
+
+#convert empty spaces in NA
+X[X == ""] <- NA
+
+#delete spaces at the beginning of the BorrowerName and Tax ID
+X$BorrowerName <- X$BorrowerName %>% str_trim(side = "both")
+X$`Tax ID` <- X$`Tax ID` %>% str_trim(side = "both")
+
+NDG_table <- X
+
+#give new names to columns
+NDG_table<- NDG_table %>% rename(Name = BorrowerName, Region = `Borrower's Region`, TaxID= `Tax ID`)
+
+#unify NDG with name
+NDG_table$Key <-  paste(NDG_table$Name,NDG_table$NDG)
+#change  spaces with _
+NDG_table$Key <- gsub("[ ]", "_", NDG_table$Key)
+#reorder the columns
+NDG_table <- NDG_table %>% subset(select=c(Key, Name, TaxID, NDG:ID_Address))
+
+#function to detect potential primary keys
+detect_primary_keys <- function(NDG_table) {
+  possible_keys <- character(0)
+  
+  for (col in names(NDG_table)) {
+    if (length(unique(NDG_table[[col]])) == nrow(NDG_table) && !any(is.na(NDG_table[[col]]))) {
+      possible_keys <- c(possible_keys, col)
+    }
+  }
+  return(possible_keys)
+}
+
+possible_keys <- detect_primary_keys(NDG_table)
+print(possible_keys)
+
+#create table for position information only and not duplicated
+Address_table <- NDG_table %>% subset(select=c(ID_Address, Address:Region))
+#eliminate duplicates
+Address_table <- Address_table[!duplicated(Address_table), ]
+#reorder rows according to city
+Address_table <- Address_table %>% arrange(City)
+
+
+#eliminate columns that are already in the address table
+NDG_table_no_address <- NDG_table %>% select(-Address:-Region)
+
+#create borrower table
+Borrower_table <- NDG_table_no_address %>% select(-Category)
+
+#create NDG final table
+NDG_final <- NDG_table_no_address %>% select(-Key, -Name, -TaxID, -ID_Address, -Group)
+#eliminate duplicates
+NDG_final <- NDG_final[!duplicated(NDG_final), ]
+#reorder rows according to NDG
+NDG_final <- NDG_final %>% arrange(NDG)
